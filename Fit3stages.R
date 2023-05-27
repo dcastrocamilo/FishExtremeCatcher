@@ -1,7 +1,7 @@
 ##################################################
 ##                                              ##
 ## Fit the 3-stages model in FishExtremeCatcher ##
-##                                              ##
+##           Using INLA_22.05.07                ##
 ##################################################
 library(INLA)
 library(rgdal)
@@ -51,7 +51,6 @@ stack_stage1 = inla.stack(data = list(y=datos$numbers),
                           A = list(spat.index, 1,A1),
                           effects = list(spat = 1:mesh$n,
                                        list(intercept = 1,
-                                            prof = datos$PROFUNDIDAD,
                                             year = datos$year2,
                                             effort = datos$INICIO.VIRADO),
                                        spde1.idx),
@@ -80,11 +79,9 @@ datos$extremes_presence85 = as.numeric(datos$numbers>=perc_85 & datos$npue > mea
 stack_stage2 = inla.stack(data = list(y = datos$extremes_presence85),
                           A    = list(spat.index, 1,A1),
                           effects = list(spat.bin = 1:mesh$n,
-                                       list(intercept = 1,
-                                            prof  = datos$PROFUNDIDAD,
-                                            prof2 = datos$PROFUNDIDAD^2,
-                                            year  = datos$year2), ## change 
-                                       spde1.idx),
+                                         list(intercept = 1,
+                                              prof  = datos$PROFUNDIDAD), 
+                                         spde1.idx),
                           tag='est')
 form2 =  y ~ -1 + intercept +  prof 
 
@@ -103,7 +100,6 @@ save(stage2_fit, file = "fitstage2.Rdata")
 ########################################
 exc = which(datos$extremes_presence85 == 1)
 extreme_data = datos[exc, ]
-extreme_data$bathy_stage3 = inla.group(extreme_data$PROFUNDIDAD, n = 15, method = "cut")
 
 ## 1D SPDE for bathy
 mesh1d_ext = inla.mesh.1d(seq(min(extreme_data$PROFUNDIDAD), max(extreme_data$PROFUNDIDAD), by = 10)) 
@@ -124,24 +120,64 @@ stack_stage3 = inla.stack(data = list(y=extreme_data$numbers),
                           effects = list(spat = 1:mesh$n,
                                        list(intercept = 1,
                                             year = extreme_data$year2,
-                                            #month=datos$MonthShot[exc],
-                                            prof = extreme_data$bathy_stage3,
                                             effort = extreme_data$INICIO.VIRADO),
                                        spde1.ext.idx),
                           tag='est')
 
-alfa = 0.5 ## median
+beta = 0.5 ## median
 form3 =  y ~ -1 + intercept +  year + f(bathy, model = spde1_NA_ext) + offset(log(effort)) 
 
-stage3_fit=inla(form3,
-                family            = c('dgp'),
-                # control.inla      = list(strategy = "laplace"),
-                # control.inla      = list(strategy = "simplified.laplace", int.strategy = "eb"),
-                control.family    = list(control.link = list(quantile=alfa), hyper = list(tail = list(prior = "pc.gevtail", param = c(1, 0.0, 0.5)))),
-                data              = inla.stack.data(stack_stage3),
-                control.compute   = list(dic = TRUE, waic = TRUE, config = TRUE),
-                control.predictor = list(A=inla.stack.A(stack_stage3), compute=TRUE),
-                verbose           = F, 
-                num.threads       = 1)
+stage3_fit = inla(form3,
+                  family            = c('dgp'),
+                  # control.inla      = list(strategy = "laplace"),
+                  # control.inla      = list(strategy = "simplified.laplace", int.strategy = "eb"),
+                  control.family    = list(control.link = list(quantile=beta), hyper = list(tail = list(prior = "pc.gevtail", param = c(1, 0.0, 0.5)))),
+                  data              = inla.stack.data(stack_stage3),
+                  control.compute   = list(dic = TRUE, waic = TRUE, config = TRUE),
+                  control.predictor = list(A=inla.stack.A(stack_stage3), compute=TRUE),
+                  verbose           = F, 
+                  num.threads       = 1)
 
 save(stage3_fit, mesh1d_ext, extreme_data, file = "fitstage3.Rdata")
+
+##############################################################################################
+## Stage 3 with prediction where no extremes are observed (for predictive model assessment) ##
+##############################################################################################
+exc = which(datos$extremes_presence85 == 1)
+extreme_data = datos
+extreme_data$numbers[-exc] = NA
+
+## 1D SPDE for bathy (same as stage1)
+mesh1d    = inla.mesh.1d(seq(min(datos$PROFUNDIDAD), max(datos$PROFUNDIDAD), by = 10)) 
+A1        = inla.spde.make.A(mesh1d, datos$PROFUNDIDAD)
+spde1_NA  = inla.spde2.pcmatern(mesh1d, prior.range = c(150, NA), prior.sigma = c(1, 0.2))
+spde1.idx = inla.spde.make.index("bathy", n.spde = spde1_NA$n.spde)
+
+stack_stage3 = inla.stack(data = list(y=extreme_data$numbers),
+                          A = list(spat.index, 1,A1),
+                          effects = list(spat = 1:mesh$n,
+                                         list(intercept = 1,
+                                              prof = datos$PROFUNDIDAD,
+                                              year = datos$year2,
+                                              effort = datos$INICIO.VIRADO),
+                                         spde1.idx),
+                          tag='est')
+
+beta = 0.5 ## median
+form3 =  y ~ -1 + intercept +  year + f(bathy, model = spde1_NA) + offset(log(effort)) 
+
+stage3_pred = inla(form3,
+                   family            = c('dgp'),
+                   # control.inla      = list(strategy = "laplace"),
+                   # control.inla      = list(strategy = "simplified.laplace", int.strategy = "eb"),
+                   control.family    = list(control.link = list(quantile=beta), hyper = list(tail = list(prior = "pc.gevtail", param = c(1, 0.0, 0.5)))),
+                   data              = inla.stack.data(stack_stage3),
+                   control.compute   = list(dic = TRUE, waic = TRUE, config = TRUE),
+                   control.predictor = list(A=inla.stack.A(stack_stage3), compute=TRUE),
+                   verbose           = T, 
+                   num.threads       = 1)
+
+save(stage3_pred, extreme_data, file = "predstage3.Rdata")
+
+
+
