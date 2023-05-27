@@ -4,4 +4,4 @@ Fit3stages.R: fit the 3-stages model
 
 Figures.R: reproduces Figures 1-3 in the article
 
-twCRPS.R: numerical approximation for measure of forecasting ability (twCRPS)
+Scoring.R: PITs and different scoring rules for count data, computed using posterior samples (Section 2.5)
