@@ -6,7 +6,7 @@
 library(ggplot2)
 library(rgdal)
 library(gridExtra)
-load('datos.Rdata')
+load('FECdata.Rdata')
 bathy = readGDAL("bathy.tiff")
 load("fitstage1.Rdata")
 load("fitstage2.Rdata")
@@ -29,10 +29,10 @@ ggtheme = theme(axis.title = element_text(size = 30),
 df1 = stage1_fit$summary.random$bathy
 df1$Bathymetry = mesh1d$loc
 
-df2 = data.frame(Bathymetry   = datos$PROFUNDIDAD, 
-                 mean         = datos$PROFUNDIDAD*stage2_fit$summary.fixed$mean[2],
-                 `0.025quant` = datos$PROFUNDIDAD*stage2_fit$summary.fixed$`0.025quant`[2],
-                 `0.975quant` = datos$PROFUNDIDAD*stage2_fit$summary.fixed$`0.975quant`[2],
+df2 = data.frame(Bathymetry   = FECdata$profundidad, 
+                 mean         = FECdata$profundidad*stage2_fit$summary.fixed$mean[2],
+                 `0.025quant` = FECdata$profundidad*stage2_fit$summary.fixed$`0.025quant`[2],
+                 `0.975quant` = FECdata$profundidad*stage2_fit$summary.fixed$`0.975quant`[2],
                  check.names = FALSE)
 
 df3 = stage3_fit$summary.random$bathy
@@ -56,12 +56,12 @@ ggsave(filename = 'BathyEffect.pdf', arrangeGrob(p1, p2, p3, ncol = 3), width = 
 ## Temporal trends (Figure 2) ##
 ################################
 df1 = stage1_fit$summary.random$year
-df1$Year = unique(datos$year2)
+df1$Year = unique(FECdata$yearID)
 
-df2 = data.frame(Year   = datos$year2, 
-                 mean         = datos$year2*stage3_fit$summary.fixed$mean[2],
-                 `0.025quant` = datos$year2*stage3_fit$summary.fixed$`0.025quant`[2],
-                 `0.975quant` = datos$year2*stage3_fit$summary.fixed$`0.975quant`[2],
+df2 = data.frame(Year   = FECdata$yearID, 
+                 mean         = FECdata$yearID*stage3_fit$summary.fixed$mean[2],
+                 `0.025quant` = FECdata$yearID*stage3_fit$summary.fixed$`0.025quant`[2],
+                 `0.975quant` = FECdata$yearID*stage3_fit$summary.fixed$`0.975quant`[2],
                  check.names = FALSE)
 
 p1 = ggplot(data = df1, aes(x = Year, y = mean)) +  geom_line(linewidth = 2, colour = blue) + 
